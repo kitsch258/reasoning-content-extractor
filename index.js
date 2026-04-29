@@ -283,7 +283,7 @@ function bindSettingsUi() {
 
 function registerEventHandlers() {
     const context = getContext();
-    const earlyRepair = (messageId) => void repairMessage(Number(messageId), { render: false, save: false, emit: true });
+    const earlyRepair = (messageId) => void repairMessage(Number(messageId), { render: true, save: false, emit: true });
     const renderedRepair = (messageId) => void repairMessage(Number(messageId), { render: true, save: false, emit: true });
     const savedRepair = (messageId) => void repairMessage(Number(messageId), { render: true, save: true, emit: true });
 
