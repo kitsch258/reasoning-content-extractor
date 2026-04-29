@@ -21,7 +21,7 @@ const defaultSettings = Object.freeze({
     emitMessageUpdated: true,
     mode: 'regex',
     tagName: 'content',
-    regex: '</think>\s*([\s\S]*?)$',
+    regex: '</think>\\s*([\\s\\S]*)$',
     regexFlags: 'i',
 });
 
@@ -115,11 +115,12 @@ function hasRenderedMessage(messageId) {
     return document.querySelector(`#chat .mes[mesid="${messageId}"]`) !== null;
 }
 
-async function emitMessageUpdated(messageId) {
+async function emitRepairEvents(messageId) {
     const context = getContext();
     suppressMessageUpdated = true;
     try {
         await context.eventSource.emit(context.eventTypes.MESSAGE_UPDATED, messageId);
+        await context.eventSource.emit(context.eventTypes.MESSAGE_REASONING_EDITED, messageId);
     } finally {
         suppressMessageUpdated = false;
     }
@@ -180,7 +181,7 @@ async function repairMessage(messageId, {
     }
 
     if (emit && settings.emitMessageUpdated) {
-        queueMicrotask(() => void emitMessageUpdated(Number(messageId)));
+        queueMicrotask(() => void emitRepairEvents(Number(messageId)));
     }
 
     console.debug('[Reasoning Content Extractor] Repaired message', messageId);
@@ -297,7 +298,12 @@ function registerEventHandlers() {
     context.eventSource.makeFirst(context.eventTypes.STREAM_REASONING_DONE, reasoningDoneRepair);
     context.eventSource.makeLast(context.eventTypes.CHARACTER_MESSAGE_RENDERED, renderedRepair);
     context.eventSource.on(context.eventTypes.MESSAGE_SWIPED, savedRepair);
-    context.eventSource.on(context.eventTypes.MESSAGE_REASONING_EDITED, savedRepair);
+    context.eventSource.on(context.eventTypes.MESSAGE_REASONING_EDITED, (messageId) => {
+        if (suppressMessageUpdated) {
+            return;
+        }
+        savedRepair(messageId);
+    });
     context.eventSource.on(context.eventTypes.MESSAGE_UPDATED, (messageId) => {
         if (suppressMessageUpdated) {
             return;
