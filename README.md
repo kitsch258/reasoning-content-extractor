@@ -21,6 +21,7 @@
 ## 功能特点
 
 - 自动处理新生成的 AI 消息。
+- 在 MVU 额外解析模式下，可在推理流结束时提前修复消息，尽量缩短正文为空的时间窗口。
 - 支持手动编辑推理块后自动提取。
 - 支持切换 swipe 时自动修复当前候选。
 - 默认只修复空正文消息，避免覆盖正常回复。
@@ -54,7 +55,7 @@ SillyTavern/public/scripts/extensions/third-party/reasoning-content-extractor
 
 ## 快速开始
 
-默认设置已经适合大多数情况。
+默认设置保持兼容模式，仍然提取 `<content>...</content>`。
 
 只要 AI 消息满足以下条件，扩展就会自动修复：
 
@@ -68,14 +69,31 @@ SillyTavern/public/scripts/extensions/third-party/reasoning-content-extractor
 正文：空
 
 推理块：
-一些推理内容
-<content>这是应该显示出来的正文。</content>
+<content>
+这是应该显示出来的正文。
+还可以包含后续段落。
+</content>
 ```
 
 默认修复后：
 
 ```html
-<content>这是应该显示出来的正文。</content>
+<content>
+这是应该显示出来的正文。
+还可以包含后续段落。
+</content>
+```
+
+如果你需要提取 `</think>` 或 `</thinking>` 后的全部内容，请在设置中切换到“自定义正则”模式，并填写：
+
+```regex
+<\/(?:think|thinking)>\s*([\s\S]*?)$
+```
+
+正则标志填写：
+
+```text
+i
 ```
 
 ## 设置说明
@@ -115,6 +133,14 @@ SillyTavern/public/scripts/extensions/third-party/reasoning-content-extractor
 ```text
 这是正文。
 ```
+
+### MVU 额外解析模式下提前修复
+
+当检测到已安装 TavernHelper 且 MVU 设置中的“更新方式”不是“随AI输出”时，扩展会认为当前处于 MVU 额外解析模式。
+
+在这个模式下，扩展会在 SillyTavern 的推理流结束后，对对应消息提前执行一次提取修复，让 MVU 额外解析读取楼层时更可能拿到真实正文。
+
+这是一层针对 MVU 额外解析的兼容机制，不会替代原有的消息接收、渲染完成、消息更新等兜底修复逻辑。
 
 ### 修复后发送 MESSAGE_UPDATED 事件
 
@@ -164,13 +190,15 @@ response
 
 #### 自定义正则
 
-高级模式。适合需要更复杂匹配规则的用户。
+适合需要更复杂匹配规则的用户，例如提取 `</think>` 或 `</thinking>` 后的全部内容。
 
-默认正则：
+推荐正则：
 
 ```regex
-<content\b[^>]*>([\s\S]*?)<\/content>
+<\/(?:think|thinking)>\s*([\s\S]*?)$
 ```
+
+这条正则会匹配 `</think>` 或 `</thinking>` 之后的全部内容，并优先使用第一个捕获组作为提取结果。
 
 扩展会优先使用第一个捕获组作为提取内容。如果没有捕获组，则使用完整匹配。
 
@@ -192,19 +220,13 @@ response
 推理块：
 
 ```html
-模型分析内容……
-
-<content>
-她轻轻抬眼，声音低了下来：“我知道你会回来。”
-</content>
+<content>她轻轻抬眼，声音低了下来：“我知道你会回来。”</content>
 ```
 
 默认提取到正文：
 
 ```html
-<content>
-她轻轻抬眼，声音低了下来：“我知道你会回来。”
-</content>
+<content>她轻轻抬眼，声音低了下来：“我知道你会回来。”</content>
 ```
 
 ### 示例二：改用 `<context>` 标签
@@ -298,6 +320,7 @@ content, context
 
 扩展依赖 SillyTavern 前端扩展 API，并使用以下事件：
 
+- `STREAM_REASONING_DONE`
 - `MESSAGE_RECEIVED`
 - `CHARACTER_MESSAGE_RENDERED`
 - `MESSAGE_SWIPED`
